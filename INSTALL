@@ -1,0 +1,8 @@
+Installation
+------------
+
+Just run "install.sh" and then add /home/$USER/.local/bin to your PATH, by adding:
+
+export PATH=$PATH:/home/$USER/.local/bin
+
+To your .bashrc or .zshrc file in your home directory.
