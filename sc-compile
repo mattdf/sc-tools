@@ -1,0 +1,102 @@
+#!/usr/bin/python2.7
+
+import json
+import re
+import sys
+import collections
+
+from common.common import hasConstructor
+
+from subprocess import check_output
+
+
+def generateTestsSkeleton(contractInfo):
+    for scope in contractInfo:
+        contract = contractInfo[scope]
+        abi = contract["abi"]
+        funs = []
+        tests = dict()
+        tests[scope] = dict()
+        tests[scope]["function-tests"] = dict()
+        for i in abi:
+            if i["type"] == "function":
+                funs.append(i)
+
+        for x in funs:
+            args = []
+            out = []
+            for i in x["inputs"]:
+                args.append(i["type"])
+
+            for i in x["outputs"]:
+                out.append(i["type"])
+
+            tests[scope]["function-tests"][x["name"]] = dict()
+            tests[scope]["function-tests"][x["name"]]["inputs"] = []
+            tests[scope]["function-tests"][x["name"]]["signature"] = x["name"] + "(" + ','.join(args) + ")" + " returns " + "(" + ','.join(out) + ")"
+
+        cargs = hasConstructor(abi)
+        if cargs:
+            tests[scope]["constructor"] = []
+            tests[scope]["constructor-signature"] = scope + "(" + ",".join(cargs) + ")"
+
+        js = dict()
+        js[scope] = tests[scope]
+        with open(scope + ".test-skeleton", 'w') as outfile:
+            json.dump(js, outfile, sort_keys=True, indent=4)
+
+        print "Generated " + scope + ".test-skeleton ..."
+
+
+def main(argv):
+
+    if len(argv) < 1:
+        print "Usage: <file> [compiler options]"
+        sys.exit(1)
+
+    file = argv[0]
+    args = ["solc", "--bin", "--abi", file]
+
+    if len(argv) > 1:
+        args = args + argv[1:]
+
+    output = check_output(args)
+    contracts = []
+    maps = dict()
+    p = re.compile("======= ([A-Za-z0-9]+) =======")
+    p2 = re.compile("Binary:|Contract JSON ABI")
+
+    for i in p.split(output):
+        if i.isspace():
+            continue
+        contracts.append(i)
+
+    for i in range(0, len(contracts) / 2 + 1, 2):
+        name = contracts[i]
+        content = contracts[i + 1]
+        parts = []
+        for x in p2.split(content.strip()):
+            if x.isspace() or x == "":
+                continue
+            parts.append(x.strip())
+
+        code = parts[0]
+        abi = json.loads(parts[1], object_pairs_hook=collections.OrderedDict)
+        maps[name] = {
+            "abi": abi,
+            "code": code
+        }
+
+    for name in maps:
+        js = dict()
+        js[name] = maps[name]
+        with open("./" + name + ".abi", 'w') as outfile:
+            json.dump(js, outfile, sort_keys=True, indent=4)
+
+        print "Generated " + name + ".abi ..."
+
+    generateTestsSkeleton(maps)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

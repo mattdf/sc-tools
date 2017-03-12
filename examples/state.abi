@@ -1,0 +1,5 @@
+{
+	"Test": {
+		"abi" : [{"constant":false,"inputs":[{"name":"a","type":"int256"}],"name":"setStore","outputs":[],"type":"function"},{"constant":true,"inputs":[],"name":"getStore","outputs":[{"name":"","type":"int256"}],"type":"function"},{"constant":true,"inputs":[{"name":"a","type":"int256"}],"name":"multStore","outputs":[{"name":"","type":"int256"}],"type":"function"},{"inputs":[{"name":"a","type":"int256"}],"type":"constructor"}]
+	}
+}

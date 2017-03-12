@@ -1,0 +1,178 @@
+#!/usr/bin/python2.7
+
+import erpc.utils as utils
+import erpc.abi as abi
+
+import sys
+import getopt
+
+import os.path
+from subprocess import check_output, STDOUT
+
+from common.common import JSONToOD, callHash, encodeParam, getEvents, getLogs, printDict
+
+from erpc import erpc
+
+from colorama import Fore
+
+verbose = False
+
+
+def usage():
+    print "sc-test -- Test smart contract"
+    print "Usage: sc-test [options...]"
+    print ""
+    print "\t-n name     \tTarget named contract from contracts.map, for remote runs"
+    print "\t-t tests    \tTests to run"
+    print "\t-a abi      \tABI file for local runs, required if using -c"
+    print "\t-c code     \tAssembly for local runs"
+    print "\t-m mapfile  \tSpecify explicit mapfile (default: ./contracts.map)"
+    print "\t-g gas      \tAllocate gas for transaction (default: 1000000)"
+    print "\t-e eth      \tAllocate eth for transaction (default: 0)"
+    print "\t-i index    \tUse account[index] for transaction, must already be unlocked (default: 0)"
+    print "\t-h host     \tConnect to host (default: localhost)"
+    print "\t-p port     \tConnect to port (default: 8001)"
+
+
+def runLocalTest(tests, code, abi):
+    for fun in tests["function-tests"]:
+        for n in range(0, len(tests["function-tests"][fun]["inputs"])):
+            input = tests["function-tests"][fun]["inputs"][n]
+            fsig, argsig, outsig, constant = callHash(abi, fun)
+            ssig = utils.sha3(fsig).encode('hex')
+            param = encodeParam(ssig, input, argsig)
+            output = check_output(['evm', '--code', code, '--input', param], stderr=STDOUT)
+            print input
+            print output
+
+
+def runRemoteTest(rpc, addr, gas, value, tests, name, chainmap):
+    for contract in tests:
+        if contract != name:
+            continue
+
+        ft = tests[contract]["function-tests"]
+        ci = chainmap[contract]
+        for function in ft:
+            for n in range(0, len(ft[function]["inputs"])):
+                trial = ft[function]["inputs"][n]
+                fsig, argsig, outsig, constant = callHash(ci["abi"], function)
+                currentBlock = int(rpc.blockNumber(), 16)
+                print "========= Testing", fsig, "========="
+                if not constant:
+                    print Fore.YELLOW + "Call", fsig, " will change blockchain state! Awaiting transaction receipt..." + Fore.RESET
+                print "Current block: ", currentBlock
+# if 'block' in ft[function]:
+#     while currentBlock < int(ci["block"], 16) + ft[function]["block"]:
+#         currentBlock = int(rpc.blockNumber(), 16)
+#         print "Current block:", currentBlock
+#         sleep(3)
+                param = '0x' + encodeParam(utils.sha3(fsig).encode('hex'), trial, argsig)
+                print "ABI Parameters:", param
+                if "callvalues" in ft[function]:
+                    value = hex(int(float(ft[function]["callvalues"][n]) * 1000000000000000000))
+                if constant:
+                    response = rpc.call({"from": addr, "to": ci["addr"], "data": param, "gas": gas})
+                else:
+                    response, hash = rpc.sendTransactionWait({"from": addr, "to": ci["addr"], "data": param, "gas": gas, "value": value})
+                    if verbose:
+                        printDict(response)
+                    print "Gas cost:      ", int(response["gasUsed"], 16)
+                    if response["gasUsed"] == gas:
+                        print Fore.RED + "ERROR: Transaction ran out of gas" + Fore.RESET
+                    events = getEvents(ci["abi"])
+                    logs = getLogs(events, response)
+                    if len(logs.keys()) > 0:
+                        print "Event logs: ------"
+                        printDict(logs)
+                        print "------------------"
+                    continue
+
+                result = abi.decode_abi(outsig, response[2:].decode("hex"))
+                print "ABI Result:    ", response
+                print "JSON Result: -----"
+                printDict(result)
+                print "------------------"
+                if "outputs" in ft[function]:
+                    if ft[function]["outputs"][n] == result:
+                        print Fore.GREEN + "Test", n, "for", Fore.YELLOW + fsig + Fore.GREEN + " Passed!" + Fore.RESET
+                    else:
+                        print Fore.RED + "Test", n, "for", Fore.YELLOW + fsig + Fore.RED + " Failed!" + Fore.RESET
+                        print "Expected", ft[function]["outputs"][n], "got", result
+                        sys.exit(1)
+                else:
+                    print "Ran function", Fore.YELLOW + fsig + Fore.RESET + "!"
+
+
+def main(argv):
+
+    host = "localhost"
+    port = "8001"
+    tests = None
+    code = None
+    abi = None
+    name = None
+    mapfile = "./contracts.map"
+    chainmap = None
+    addrIndex = 0
+    gas = hex(int("1000000"))
+    value = "0x00"
+    global verbose
+
+    try:
+        opts, args = getopt.getopt(argv, "t:c:a:n:p:m:h:i:g:ve:", ["help"])
+    except getopt.GetoptError:
+        usage()
+        sys.exit(2)
+
+    for opt, arg in opts:
+        if opt == "--help":
+            usage()
+            sys.exit()
+        elif opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = arg
+        elif opt == '-t':
+            tests = arg
+        elif opt == '-c':
+            code = arg
+        elif opt == '-a':
+            abi = arg
+        elif opt == '-m':
+            mapfile = arg
+        elif opt == '-n':
+            name = arg
+        elif opt == '-i':
+            addrIndex = int(arg)
+        elif opt == '-g':
+            gas = hex(int(arg))
+        elif opt == '-e':
+            value = hex(int(float(arg) * 1000000000000000000))
+        elif opt == '-v':
+            verbose = True
+
+    if (not (code or name)) or (not tests) or (code and not abi):
+        usage()
+        sys.exit(1)
+
+    if abi:
+        abi = JSONToOD(abi)
+
+    tests = JSONToOD(tests)
+
+    if code:
+        runLocalTest(tests, code, abi)
+    else:
+        if os.path.isfile(mapfile):
+            chainmap = JSONToOD(mapfile)
+            rpc = erpc.ERPC(host, port)
+            addr = rpc.getAccount()[addrIndex]
+            runRemoteTest(rpc, addr, gas, value, tests, name, chainmap)
+        else:
+            print "chainmap file needed for remote tests"
+            sys.exit(1)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

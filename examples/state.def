@@ -1,0 +1,27 @@
+{
+  "Test": {
+    "constructor": [10],
+    "function-tests": {
+      "setStore": {
+        "inputs": [
+          [20]
+        ]
+      },
+      "multStore": {
+        "inputs": [
+          [5],
+          [10]
+        ],
+        "outputs": [
+          [100],
+          [200]
+        ],
+		"block": 1
+      },
+      "getStore": {
+		"inputs": [[]],
+		"outputs": [[20]]
+	  }
+    }
+  }
+}
