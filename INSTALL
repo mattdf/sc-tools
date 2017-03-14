@@ -1,7 +1,11 @@
 Installation
 ------------
 
-Just run "install.sh" and then add /home/$USER/.local/bin to your PATH, by adding:
+Install prerequisite python packages with:
+
+`pip install pysha3 rlp pyyaml colorama requests`
+
+Then run "install.sh" and then add /home/$USER/.local/bin to your PATH, by adding:
 
 export PATH=$PATH:/home/$USER/.local/bin
 

@@ -65,6 +65,15 @@ def getEvents(scABI):
     return events
 
 
+def processedAbi(args, data):
+    results = abi.decode_abi(args, data[2:].decode("hex"))
+    for i in range(0, len(args)):
+        if args[i] == "bytes32":
+            results[i] = results[i].encode("hex")
+
+    return results
+
+
 def getLogs(events, response):
     result = dict()
     for log in response["logs"]:
@@ -76,7 +85,10 @@ def getLogs(events, response):
                 args = event["argsig"]
                 if event["name"] not in result:
                     result[event["name"]] = []
-                result[event["name"]].append(abi.decode_abi(args, data[2:].decode("hex")))
+                if (len(args) < 1):
+                    result[event["name"]].append("")
+                else:
+                    result[event["name"]].append(processedAbi(args, data))
 
     return result
 

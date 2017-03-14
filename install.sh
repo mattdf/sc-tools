@@ -1,5 +1,7 @@
 #!/bin/bash
 
+mkdir -p "/home/$USER/.local/bin"
+
 rm -rf "/home/$USER/.local/bin/sc-tools"
 cp -r . "/home/$USER/.local/bin/sc-tools"
 rm -f "/home/$USER/.local/bin/sc-compile"
