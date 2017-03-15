@@ -15,6 +15,8 @@ from erpc import erpc
 
 from colorama import Fore
 
+from time import sleep
+
 verbose = False
 
 
@@ -46,6 +48,54 @@ def runLocalTest(tests, code, abi):
             print output
 
 
+def handleResponse(response, gas, ci):
+    if verbose:
+        printDict(response)
+    print "Gas cost:      ", int(response["gasUsed"], 16)
+    if response["gasUsed"] == gas:
+        print Fore.RED + "ERROR: Transaction ran out of gas" + Fore.RESET
+    events = getEvents(ci["abi"])
+    logs = getLogs(events, response)
+    if len(logs.keys()) > 0:
+        print "Event logs: ------"
+        printDict(logs)
+        print "------------------"
+
+
+def prepareCall(rpc, ci, function, trial):
+    fsig, argsig, outsig, constant = callHash(ci["abi"], function)
+    currentBlock = int(rpc.blockNumber(), 16)
+    print "========= Testing", fsig, "========="
+    if not constant:
+        print Fore.YELLOW + "Call", fsig, " will change blockchain state! Awaiting transaction receipt..." + Fore.RESET
+    print "Current block: ", currentBlock
+    param = '0x' + encodeParam(utils.sha3(fsig).encode('hex'), trial, argsig)
+    print "ABI Parameters:", param
+    return fsig, argsig, outsig, constant, param
+
+
+def checkOutputs(ft, function, n, fsig, result):
+    if ft[function]["outputs"][n] == result:
+        print Fore.GREEN + "Test", n, "for", Fore.YELLOW + fsig + Fore.GREEN + " Passed!" + Fore.RESET
+    else:
+        print Fore.RED + "Test", n, "for", Fore.YELLOW + fsig + Fore.RED + " Failed!" + Fore.RESET
+        print "Expected", ft[function]["outputs"][n], "got", result
+        sys.exit(1)
+
+
+def printResponse(response, result):
+    print "ABI Result:    ", response
+    print "JSON Result: -----"
+    printDict(result)
+    print "------------------"
+
+# if 'block' in ft[function]:
+#     while currentBlock < int(ci["block"], 16) + ft[function]["block"]:
+#         currentBlock = int(rpc.blockNumber(), 16)
+#         print "Current block:", currentBlock
+#         sleep(3)
+
+
 def runRemoteTest(rpc, addr, gas, value, tests, name, chainmap):
     for contract in tests:
         if contract != name:
@@ -53,55 +103,49 @@ def runRemoteTest(rpc, addr, gas, value, tests, name, chainmap):
 
         ft = tests[contract]["function-tests"]
         ci = chainmap[contract]
+        async_receipts = []
         for function in ft:
-            for n in range(0, len(ft[function]["inputs"])):
-                trial = ft[function]["inputs"][n]
-                fsig, argsig, outsig, constant = callHash(ci["abi"], function)
-                currentBlock = int(rpc.blockNumber(), 16)
-                print "========= Testing", fsig, "========="
-                if not constant:
-                    print Fore.YELLOW + "Call", fsig, " will change blockchain state! Awaiting transaction receipt..." + Fore.RESET
-                print "Current block: ", currentBlock
-# if 'block' in ft[function]:
-#     while currentBlock < int(ci["block"], 16) + ft[function]["block"]:
-#         currentBlock = int(rpc.blockNumber(), 16)
-#         print "Current block:", currentBlock
-#         sleep(3)
-                param = '0x' + encodeParam(utils.sha3(fsig).encode('hex'), trial, argsig)
-                print "ABI Parameters:", param
+            fun = ft[function]
+            async_test = False
+            if "inputs" in fun:
+                runs = fun["inputs"]
+            elif "inputs-async" in fun:
+                runs = fun["inputs-async"]
+                async_test = True
+            for n in range(0, len(runs)):
+                trial = runs[n]
+                fsig, argsig, outsig, constant, param = prepareCall(rpc, ci, function, trial)
+                tx_obj = {"from": addr, "to": ci["addr"], "data": param, "gas": gas}
                 if "callvalues" in ft[function]:
                     value = hex(int(float(ft[function]["callvalues"][n]) * 1000000000000000000))
                 if constant:
-                    response = rpc.call({"from": addr, "to": ci["addr"], "data": param, "gas": gas})
+                    response = rpc.call(tx_obj)
+                    result = abi.decode_abi(outsig, response[2:].decode("hex"))
+                    printResponse(response, result)
                 else:
-                    response, hash = rpc.sendTransactionWait({"from": addr, "to": ci["addr"], "data": param, "gas": gas, "value": value})
-                    if verbose:
-                        printDict(response)
-                    print "Gas cost:      ", int(response["gasUsed"], 16)
-                    if response["gasUsed"] == gas:
-                        print Fore.RED + "ERROR: Transaction ran out of gas" + Fore.RESET
-                    events = getEvents(ci["abi"])
-                    logs = getLogs(events, response)
-                    if len(logs.keys()) > 0:
-                        print "Event logs: ------"
-                        printDict(logs)
-                        print "------------------"
-                    continue
-
-                result = abi.decode_abi(outsig, response[2:].decode("hex"))
-                print "ABI Result:    ", response
-                print "JSON Result: -----"
-                printDict(result)
-                print "------------------"
-                if "outputs" in ft[function]:
-                    if ft[function]["outputs"][n] == result:
-                        print Fore.GREEN + "Test", n, "for", Fore.YELLOW + fsig + Fore.GREEN + " Passed!" + Fore.RESET
+                    tx_obj["value"] = value
+                    if async_test:
+                        receipt = rpc.sendTransaction(tx_obj)
+                        print "Tx Receipt: " + receipt
+                        async_receipts.append((receipt, gas, ci))
                     else:
-                        print Fore.RED + "Test", n, "for", Fore.YELLOW + fsig + Fore.RED + " Failed!" + Fore.RESET
-                        print "Expected", ft[function]["outputs"][n], "got", result
-                        sys.exit(1)
+                        response, hash = rpc.sendTransactionWait(tx_obj)
+                        handleResponse(response, gas, ci)
+                if "outputs" in ft[function]:
+                    checkOutputs(ft, function, n, fsig, result)
                 else:
                     print "Ran function", Fore.YELLOW + fsig + Fore.RESET + "!"
+        for i in range(0, 100):
+            for j in range(0, len(async_receipts)):
+                r = async_receipts[j]
+                if r is False:
+                    continue
+                response = rpc.getTransactionReceipt(r[0])
+                if response is not None:
+                    print "Tx Receipt: " + r[0]
+                    handleResponse(response, r[1], r[2])
+                    async_receipts[j] = False
+                sleep(0.2)
 
 
 def main(argv):
