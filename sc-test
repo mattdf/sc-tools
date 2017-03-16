@@ -143,6 +143,7 @@ def runRemoteTest(rpc, addr, gas, value, tests, name, chainmap):
                 response = rpc.getTransactionReceipt(r[0])
                 if response is not None:
                     print "Tx Receipt: " + r[0]
+                    print "Block number: ", int(response["blockNumber"], 16)
                     handleResponse(response, r[1], r[2])
                     async_receipts[j] = False
                 sleep(0.2)
