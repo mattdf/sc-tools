@@ -55,7 +55,7 @@ def main(argv):
         sys.exit(1)
 
     file = argv[0]
-    args = ["solc", "--bin", "--abi", file]
+    args = ["solc_", "--optimize", "--bin", "--abi", file]
 
     if len(argv) > 1:
         args = args + argv[1:]
@@ -63,7 +63,7 @@ def main(argv):
     output = check_output(args)
     contracts = []
     maps = dict()
-    p = re.compile("======= ([A-Za-z0-9]+) =======")
+    p = re.compile("======= ([A-Za-z0-9\:\-\.\/]+) =======")
     p2 = re.compile("Binary:|Contract JSON ABI")
 
     for i in p.split(output):

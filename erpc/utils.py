@@ -2,8 +2,8 @@ try:
     from Crypto.Hash import keccak
     sha3_256 = lambda x: keccak.new(digest_bits=256, data=x).digest()
 except:
-    import _sha3
-    sha3_256 = lambda x: _sha3.sha3_256(x).digest()
+    from sha3 import keccak_256 as _sha3
+    sha3_256 = lambda x: _sha3(x).digest()
 #from bitcoin import privtopub
 import sys
 import rlp
