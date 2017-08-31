@@ -29,7 +29,7 @@ class ERPC:
             return False
 
     def getAccount(self):
-        return self.send("eth_accounts", ["0"])
+        return self.send("eth_accounts", [])
 
     def compileContract(self, code):
         return self.send("eth_compileSolidity", [code])

@@ -33,7 +33,7 @@ def usage():
     print "\t-e eth      \tAllocate eth for transaction (default: 0)"
     print "\t-i index    \tUse account[index] for transaction, must already be unlocked (default: 0)"
     print "\t-h host     \tConnect to host (default: localhost)"
-    print "\t-p port     \tConnect to port (default: 8001)"
+    print "\t-p port     \tConnect to port (default: 8545)"
 
 
 def runLocalTest(tests, code, abi):
@@ -153,7 +153,7 @@ def runRemoteTest(rpc, addr, gas, value, tests, name, chainmap):
 def main(argv):
 
     host = "localhost"
-    port = "8001"
+    port = "8545"
     tests = None
     code = None
     abi = None

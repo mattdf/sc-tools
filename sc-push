@@ -30,7 +30,7 @@ def usage():
     print "\t-g gas      \tAllocate gas for transaction (default: 1000000)"
     print "\t-i index    \tUse account[index] for transaction, must already be unlocked (default: 0)"
     print "\t-h host     \tConnect to host (default: localhost)"
-    print "\t-p port     \tConnect to port (default: 8001)"
+    print "\t-p port     \tConnect to port (default: 8545)"
 
 
 def fileToStr(file):
@@ -139,7 +139,7 @@ def checkContractCode(rpc, contractInfo):
 def main(argv):
 
     host = "localhost"
-    port = "8001"
+    port = "8545"
     sfile = None
     tests = None
     sigfile = None
