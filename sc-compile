@@ -75,6 +75,9 @@ def main(argv):
         name = contracts[i]
         content = contracts[i + 1]
         parts = []
+        n = name.split(":")
+        name = n[-1]
+        print name
         for x in p2.split(content.strip()):
             if x.isspace() or x == "":
                 continue
