@@ -81,7 +81,6 @@ def main(argv):
         for x in p2.split(content.strip()):
             if x.isspace() or x == "":
                 continue
-            print x
             parts.append(x.strip())
 
         if len(parts) < 2:

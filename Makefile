@@ -6,7 +6,7 @@ FILES=./examples/state.sol
 TESTS=./examples/state.def
 CONTRACT=Test
 ABI=$(CONTRACT).abi
-PORT=8881
+PORT=8545
 
 all: compile push test
 
