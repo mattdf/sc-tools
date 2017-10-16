@@ -81,8 +81,12 @@ def main(argv):
         for x in p2.split(content.strip()):
             if x.isspace() or x == "":
                 continue
+            print x
             parts.append(x.strip())
 
+        if len(parts) < 2:
+            parts.append(parts[0])
+            parts[0] = ""
         code = parts[0]
         abi = json.loads(parts[1], object_pairs_hook=collections.OrderedDict)
         maps[name] = {
